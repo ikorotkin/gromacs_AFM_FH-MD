@@ -42,6 +42,9 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
+/*FHMD include*/
+#include "gromacs/fhmdlib/data_structures.h"
+
 struct ekinstate_t;
 struct gmx_constr;
 struct gmx_ekindata_t;
@@ -161,6 +164,9 @@ void calc_ke_part(t_state *state, t_grpopts *opts, t_mdatoms *md,
  * free energy
  *
  */
+
+/*void calc_FHMD_ke_part(t_state *state, t_grpopts *opts, t_mdatoms *md,
+                  	   gmx_ekindata_t *ekind, t_nrnb *nrnb, gmx_bool bEkinAveVel,FHMD *fh);*/
 
 
 void

@@ -329,5 +329,10 @@ real sum_ekin(t_grpopts *opts, gmx_ekindata_t *ekind, real *dekindlambda,
             *dekindlambda = 0.5*(ekind->dekindl + ekind->dekindl_old);
         }
     }
+
+    real ekind_ekin,fh_ekin;
+    ekind_ekin = trace(ekind->ekin);
+
+
     return T;
 }

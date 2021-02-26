@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+# Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -72,12 +72,10 @@ function(gmx_suggest_simd _suggested_simd)
     message(STATUS "Detecting best SIMD instructions for this CPU")
 
     # Get CPU SIMD properties information
+    set(_compile_definitions "${GCC_INLINE_ASM_DEFINE} -I${CMAKE_SOURCE_DIR}/src -DGMX_CPUINFO_STANDALONE ${GMX_STDLIB_CXX_FLAGS}")
     if(GMX_TARGET_X86)
-        set(GMX_TARGET_X86_VALUE 1)
-    else()
-        set(GMX_TARGET_X86_VALUE 0)
+        set(_compile_definitions "${_compile_definitions} -DGMX_TARGET_X86")
     endif()
-    set(_compile_definitions "${GCC_INLINE_ASM_DEFINE} -I${CMAKE_SOURCE_DIR}/src -DGMX_CPUINFO_STANDALONE ${GMX_STDLIB_CXX_FLAGS} -DGMX_TARGET_X86=${GMX_TARGET_X86_VALUE}")
 
     # Prepare a default suggestion
     set(OUTPUT_SIMD "None")
@@ -136,7 +134,7 @@ function(gmx_suggest_simd _suggested_simd)
                             set(OUTPUT_SIMD "IBM_QPX")
                         elseif(OUTPUT_TMP MATCHES " neon_asimd ")
                             set(OUTPUT_SIMD "ARM_NEON_ASIMD")
-                        elseif(OUTPUT_TMP MATCHES " neon " AND NOT GMX_DOUBLE)
+                        elseif(OUTPUT_TMP MATCHES " neon ")
                             set(OUTPUT_SIMD "ARM_NEON")
                         endif()
                     endif()

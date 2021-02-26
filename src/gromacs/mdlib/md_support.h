@@ -40,6 +40,9 @@
 #include "gromacs/mdlib/vcm.h"
 #include "gromacs/timing/wallcycle.h"
 
+/*FHMD include */
+#include "gromacs/fhmdlib/data_structures.h"
+
 struct gmx_constr;
 struct gmx_ekindata_t;
 struct gmx_enerdata_t;

@@ -67,6 +67,11 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
+/*
+ * FHMD includes
+ */
+#include "gromacs/fhmdlib/data_structures.h"
+
 #define NTROTTERPARTS 3
 
 /* Suzuki-Yoshida Constants, for n=3 and n=5, for symplectic integration  */
@@ -749,6 +754,8 @@ void berendsen_tcoupl(t_inputrec *ir, gmx_ekindata_t *ekind, real dt)
         }
     }
 }
+
+
 
 void andersen_tcoupl(t_inputrec *ir, gmx_int64_t step,
                      const t_commrec *cr, const t_mdatoms *md, t_state *state, real rate, const gmx_bool *randomize, const real *boltzfac)

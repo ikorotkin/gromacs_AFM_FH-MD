@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2012,2013,2014,2015,2016,2017, by the GROMACS development team, led by
+# Copyright (c) 2012,2013,2014,2015,2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -72,11 +72,6 @@ macro(prepare_power_vsx_toolchain TOOLCHAIN_C_FLAGS_VARIABLE TOOLCHAIN_CXX_FLAGS
         # to support the double-precision features in VSX.
         if(GMX_DOUBLE AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.9")
             message(FATAL_ERROR "Using VSX SIMD in double precision with GCC requires GCC-4.9 or later.")
-        endif()
-    endif()
-    if(${CMAKE_CXX_COMPILER_ID} MATCHES "XL" OR ${CMAKE_C_COMPILER_ID} MATCHES "XL")
-        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "13.1.5" OR CMAKE_C_COMPILER_VERSION VERSION_LESS "13.1.5")
-            message(FATAL_ERROR "Using VSX SIMD requires XL compiler version 13.1.5 or later.")
         endif()
     endif()
 endmacro()
@@ -313,7 +308,7 @@ elseif(GMX_SIMD STREQUAL "AVX_512")
          int main(){__m512 y,x=_mm512_set1_ps(0.5);y=_mm512_fmadd_ps(x,x,x);return (int)_mm512_cmp_ps_mask(x,y,_CMP_LT_OS);}"
         TOOLCHAIN_C_FLAGS TOOLCHAIN_CXX_FLAGS
         SIMD_${GMX_SIMD}_C_FLAGS SIMD_${GMX_SIMD}_CXX_FLAGS
-        "-xCORE-AVX512" "-mavx512f -mfma" "-mavx512f" "/arch:AVX" "-hgnu") # no AVX_512F flags known for MSVC yet
+        "-xMIC-AVX512" "-mavx512f -mfma" "-mavx512f" "/arch:AVX" "-hgnu") # no AVX_512F flags known for MSVC yet
 
     if(NOT SIMD_${GMX_SIMD}_C_FLAGS OR NOT SIMD_${GMX_SIMD}_CXX_FLAGS)
         gmx_give_fatal_error_when_simd_support_not_found("AVX 512F" "choose a lower level of SIMD (slower)" "${SUGGEST_BINUTILS_UPDATE}")
@@ -345,10 +340,6 @@ elseif(GMX_SIMD STREQUAL "AVX_512_KNL")
     set(SIMD_STATUS_MESSAGE "Enabling 512-bit AVX-512-KNL SIMD instructions")
 
 elseif(GMX_SIMD STREQUAL "ARM_NEON")
-
-    if (GMX_DOUBLE)
-        message(FATAL_ERROR "ARM_NEON SIMD support is not available for a double precision build because the architecture lacks double-precision support")
-    endif()
 
     gmx_find_flags(
         "#include<arm_neon.h>
@@ -427,12 +418,7 @@ elseif(GMX_SIMD STREQUAL "IBM_VSX")
         SIMD_${GMX_SIMD}_C_FLAGS SIMD_${GMX_SIMD}_CXX_FLAGS
         "-mvsx" "-maltivec -mabi=altivec" "-qarch=auto -qaltivec")
 
-    # Usually we check also for the C compiler here, but a C compiler
-    # is not required for SIMD support on this platform. cmake through
-    # at least version 3.7 cannot pass this check with the C compiler
-    # in the latest xlc 13.1.5, but the C++ compiler has different
-    # behaviour and is OK. See Redmine #2102.
-    if(NOT SIMD_${GMX_SIMD}_CXX_FLAGS)
+    if(NOT SIMD_${GMX_SIMD}_C_FLAGS OR NOT SIMD_${GMX_SIMD}_CXX_FLAGS)
         gmx_give_fatal_error_when_simd_support_not_found("IBM VSX" "disable SIMD support (slower)" "${SUGGEST_BINUTILS_UPDATE}")
     endif()
 
@@ -490,16 +476,11 @@ endif()
 # rather than actual vector data. For now we disable __vectorcall with clang
 # when using the reference build.
 # 
-# xlc 13.1.5 does not seem recognize any attribute, and warns about invalid ones
-# so we avoid searching for any.
-#
 if(NOT DEFINED GMX_SIMD_CALLING_CONVENTION)
     if(GMX_TARGET_BGQ)
         set(CALLCONV_LIST " ")
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND GMX_SIMD STREQUAL "REFERENCE")
         set(CALLCONV_LIST __regcall " ")
-   elseif(CMAKE_CXX_COMPILER_ID MATCHES "XL")
-        set(CALLCONV_LIST " ")
     else()
         set(CALLCONV_LIST __vectorcall __regcall " ")
     endif()

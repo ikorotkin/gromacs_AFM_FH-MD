@@ -74,10 +74,6 @@ Output Control
         :ref:`pdb` file, which allows to check whether multimeric channels have
         the correct PBC representation.
 
-``GMX_TRAJECTORY_IO_VERBOSITY``
-        Defaults to 1, which prints frame count e.g. when reading trajectory
-        files. Set to 0 for quiet operation.
-
 Debugging
 ---------
 ``GMX_PRINT_DEBUG_LINES``
@@ -140,9 +136,6 @@ Performance and Run Control
         disable the use of the lower-latency cudaLaunchKernel API even when supported (CUDA >=v7.0).
         Should only be used for benchmarking purposes.
 
-``GMX_DISABLE_CUDA_TIMING``
-        Disables GPU timing of CUDA tasks; synonymous with ``GMX_DISABLE_GPU_TIMING``.
-
 ``GMX_CYCLE_ALL``
         times all code during runs.  Incompatible with threads.
 
@@ -180,7 +173,7 @@ Performance and Run Control
         disables architecture-specific SIMD-optimized (SSE2, SSE4.1, AVX, etc.)
         non-bonded kernels thus forcing the use of plain C kernels.
 
-``GMX_DISABLE_GPU_TIMING``
+``GMX_DISABLE_CUDA_TIMING``
         timing of asynchronously executed GPU operations can have a
         non-negligible overhead with short step times. Disabling timing can improve performance in these cases.
 
@@ -388,8 +381,10 @@ compilation of OpenCL kernels, but they are also used in device selection.
         only the flavor required for the simulation is generated and
         compiled.
 
-``GMX_OCL_DISABLE_FASTMATH``
-        Prevents the use of ``-cl-fast-relaxed-math`` compiler option.
+``GMX_OCL_FASTMATH``
+        Adds the option ``cl-fast-relaxed-math`` to the compiler
+        options (in the CUDA version this is enabled by default, it is likely that
+        the same will happen with the OpenCL version soon)
 
 ``GMX_OCL_DUMP_LOG``
         If defined, the OpenCL build log is always written to the

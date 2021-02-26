@@ -1,7 +1,7 @@
 #
 # This file is part of the GROMACS molecular simulation package.
 #
-# Copyright (c) 2015,2016,2017, by the GROMACS development team, led by
+# Copyright (c) 2015,2016, by the GROMACS development team, led by
 # Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 # and including many others, as listed in the AUTHORS file in the
 # top-level source directory and at http://www.gromacs.org.
@@ -34,8 +34,6 @@
 
 import os.path
 
-# These are accessible later in the script, just like other
-# declared options, via e.g. context.opts.release.
 extra_options = {
     'mdrun-only': Option.simple,
     'static': Option.simple,
@@ -49,12 +47,8 @@ extra_options = {
     'thread-mpi': Option.bool,
     'gpu': Option.bool,
     'opencl': Option.bool,
-    'openmp': Option.bool,
-    'nranks': Option.string,
-    'npme': Option.string,
-    'gpu_id': Option.string
+    'openmp': Option.bool
 }
-
 extra_projects = [Project.REGRESSIONTESTS]
 
 def do_build(context):
@@ -119,6 +113,11 @@ def do_build(context):
     regressiontests_path = context.workspace.get_project_dir(Project.REGRESSIONTESTS)
 
     if context.job_type == JobType.RELEASE:
+        # TODO: Consider using REGRESSIONTEST_DOWNLOAD here, after refactoring
+        # it to make that possible.  Or use some other mechanism to check the
+        # MD5 of the regressiontests tarball (also taking into account the -dev
+        # builds where the hardcoded value in gmxVersionInfo.cmake is not
+        # accurate).
         cmake_opts['REGRESSIONTEST_PATH'] = regressiontests_path
     else:
         if context.opts.mdrun_only:
@@ -184,21 +183,19 @@ def do_build(context):
                 # not explicitly set
                 cmd += ' -ntomp 2'
 
-            if context.opts.gpu_id:
-                cmd += ' -gpu_id ' + context.opts.gpu_id
+            if context.opts.gpu:
+                if context.opts.mpi or use_tmpi:
+                    gpu_id = '01' # for (T)MPI use the two GT 640-s
+                else:
+                    gpu_id = '0' # use GPU #0 by default
+                cmd += ' -gpu_id ' + gpu_id
 
-            if context.opts.nranks:
-                nranks = context.opts.nranks
-            else:
-                nranks = '2'
-
-            if context.opts.npme:
-                cmd += ' -npme ' + context.opts.npme
-
+            # TODO: Add options to influence this (should be now local to the build
+            # script).
             if context.opts.mpi:
-                cmd += ' -np ' + nranks
+                cmd += ' -np 2'
             elif use_tmpi:
-                cmd += ' -nt ' + nranks
+                cmd += ' -nt 2'
             if context.opts.double:
                 cmd += ' -double'
             context.run_cmd(cmd, shell=True, failure_message='Regression tests failed to execute')

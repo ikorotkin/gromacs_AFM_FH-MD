@@ -115,6 +115,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/topology/mtop_util.h"
 
 #include "deform.h"
 #include "membed.h"
@@ -123,6 +124,23 @@
 #ifdef GMX_FAHCORE
 #include "corewrap.h"
 #endif
+
+
+//#define FHMD_TECPLOT
+
+/*
+ * FHMD includes
+ */
+#include "gromacs/fhmdlib/data_structures.h"
+#include "gromacs/fhmdlib/init.h"
+#include "gromacs/fhmdlib/coupling.h"
+#include "gromacs/fhmdlib/new_update.h"
+#include "gromacs/fhmdlib/output.h"
+#include "gromacs/fhmdlib/fh_functions.h"
+#include "gromacs/fhmdlib/estimate.h"
+#include "gromacs/fhmdlib/sfunction.h"
+#include "gromacs/fhmdlib/new_md_support.h"
+#include "gromacs/fhmdlib/flow_velocity.h"
 
 using gmx::SimulationSignaller;
 
@@ -276,6 +294,11 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
     char              sbuf[STEPSTRSIZE], sbuf2[STEPSTRSIZE];
     int               handled_stop_condition = gmx_stop_cond_none; /* compare to get_stop_condition*/
 
+    /*
+     * FHMD declarations
+     */
+    FHMD fhmd;
+    gmx_fhmd_global_stat g_fhmd_s;
 
     /* PME load balancing data for GPU kernels */
     pme_load_balancing_t *pme_loadbal      = NULL;
@@ -794,6 +817,12 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                           "but we are proceeding anyway!\n");
         }
     }
+
+    /*
+     * FHMD Initialization, two more parameter &(ir->opts) and &gmx_fhmd_global_stat are passed to fhmd_init
+     * for KE claculation compared to original Ivan's function
+     */
+    int is_fhmd = fhmd_init(state->box, mdatoms->homenr, mdatoms->massT, state->x, ir->delta_t, &(ir->opts) ,top_global, cr, &g_fhmd_s,&fhmd);
 
     /* and stop now if we should */
     bLastStep = (bLastStep || (ir->nsteps >= 0 && step_rel > ir->nsteps));
@@ -1403,6 +1432,23 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                  * step % nstlist = 1 with bGStatEveryStep=FALSE.
                  */
             }
+
+            /*Temperature coupling AFM simulation of FHMD */
+            //else if(fhmd.S_function == AFM)
+            else if(is_fhmd)
+            {
+            	if(fhmd.thermostat_function == bin)
+            	{
+            		update_FH_MD_tcouple(step, ir, state, ekind, &MassQ, mdatoms,&fhmd);
+            	}
+            	else if(fhmd.thermostat_function == gromacs)
+            	{
+            		update_tcouple(step, ir, state, ekind, &MassQ, mdatoms);
+                    update_pcouple(fplog, step, ir, state, pcoupl_mu, M, bInitStep);
+            	}
+            }
+            /*end of temperature coupling AFM simulation of FHMD*/
+
             else
             {
                 update_tcouple(step, ir, state, ekind, &MassQ, mdatoms);
@@ -1433,9 +1479,154 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                 copy_rvecn(state->x, cbuf, 0, state->natoms);
             }
 
-            update_coords(fplog, step, ir, mdatoms, state, f, fcd,
-                          ekind, M, upd, etrtPOSITION, cr, constr);
+            if(!is_fhmd)
+            {
+                update_coords(fplog, step, ir, mdatoms, state, f, fcd,
+                              ekind, M, upd, etrtPOSITION, cr, constr);
+            }
+            else /******************** FHMD coupling ********************/
+            {
+                fhmd.step_MD = step;
+
+                /*
+                 * FHMD: Find protein COM if necessary
+                 */
+                if(fhmd.S_function == moving_sphere)
+                {
+                    fhmd_find_protein_com(top_global, mdatoms->homenr, state->x, mdatoms->massT, cr, &fhmd);
+                    //copy_com(&fhmd);
+                }
+
+                /*
+                 * FHMD: Estimate S in the cells and cell faces
+                 */
+                FH_S_precise(&fhmd);        // FH_S(&fhmd), FH_S_weighted(&fhmd) or FH_S_precise(&fhmd)
+
+                /*
+                 * FHMD: Update MD variables in the FH cells
+                 */
+                fhmd_update_MD_in_FH(state->x, state->v, mdatoms->massT, f, mdatoms->homenr, &fhmd);
+
+                /*
+                 * FHMD: FH/MD Coupling
+                 */
+                if(fhmd.scheme == One_Way)
+                {
+                    if(MASTER(cr) && !(fhmd.step_MD % fhmd.FH_step))
+                    {
+                        FH_do_single_timestep(&fhmd);
+
+                    }
+                }
+                else if(fhmd.scheme == Two_Way)
+                {
+                    if(PAR(cr)) fhmd_sum_arrays(cr, &fhmd);
+
+                    if(fhmd.step_MD == 0)
+                        FH_init(&fhmd, cr);
+
+                    if(MASTER(cr))
+                    {
+                        if(fhmd.step_MD == 0)
+                        {
+                            FH_predictor(&fhmd);
+                        }
+                        else if(!(fhmd.step_MD % fhmd.FH_step))
+                        {
+                            FH_corrector(&fhmd);
+                            FH_predictor(&fhmd);
+                        }
+                    }
+                }
+
+                /*
+                 * FHMD: Broadcast new FH variables
+                 */
+                if(PAR(cr))
+                {
+                    if(fhmd.scheme == One_Way)
+                        fhmd_sum_arrays(cr, &fhmd);                         // for selected arrays
+                    gmx_bcast(sizeof(FH_arrays)*fhmd.Ntot, fhmd.arr, cr);   // actually we need this for the pure FH arrays only
+                }
+
+                /*
+                 * FHMD: Estimate MD/FH coupling terms
+                 */
+
+                fhmd_calculate_MDFH_terms(&fhmd);
+
+                /*
+                 * FHMD: Save all MD/FH arrays to files
+                 */
+                if(MASTER(cr) && (fhmd.Noutput > 0))
+                    if(!(fhmd.step_MD % fhmd.Noutput))
+                    {
+                    		fhmd_dump_all(&fhmd);
+
+                    		if(fhmd.thermostat_function == bin)
+                    		{
+                    			fhmd_AFM_dump_all(&fhmd);
+                    		}
+
+                    		if(fhmd.S_function == moving_sphere && fhmd.flow_type == flow)
+                    		{
+                    			fhmd_shear_dump(&fhmd);
+                    		}
+
+#ifdef FHMD_TECPLOT
+                        fhmd_write_tecplot_data(&fhmd, fhmd.step_MD/fhmd.FH_step, (double)(fhmd.step_MD/fhmd.FH_step)*fhmd.dt_FH);
+#endif
+                    }
+
+                /*
+                 * FHMD: Collect and print statistics
+                 */
+                fhmd_print_statistics(&fhmd, cr);
+
+                /*
+                 * FHMD: Modified update_coords() here
+                 */
+                fhmd_update_coords(fplog, step, ir, mdatoms, state, f, fcd,
+                                   ekind, M, upd, etrtPOSITION, cr, constr, top_global,&fhmd);
+
+                /* stream velocity  each bin for shear flow
+                                                                        *
+                                                                        */
+                if(fhmd.S_function == moving_sphere && fhmd.flow_type == flow)
+                {
+                	compute_vx_instant_mpi(&fhmd, state->x, state->v, mdatoms->massT,mdatoms->homenr,cr);
+
+                	if (MASTER(cr))
+                	{
+                		compute_average_vx_instant(&fhmd);
+                	}
+
+                	 if(PAR(cr))
+                	 {
+                		 gmx_bcast(sizeof(double)*fhmd.nzbin, fhmd.vx_m, cr);
+                		 gmx_bcast(sizeof(double)*fhmd.nzbin,fhmd.sum_vx_m,cr);
+
+                	 }
+
+                }
+            }
+
+            fhmd.step_MD = step;
+
+            if(MASTER(cr) && (fhmd.Noutput > 0))
+            	if(!(fhmd.step_MD % fhmd.Noutput))
+                {
+            		if(fhmd.S_function == AFM)
+            		  AFM_dump(&fhmd);
+                }
+
+            if(fhmd.S_function == AFM)
+            {
+               compute_tem(&fhmd, state->x, state->v, mdatoms->massT,mdatoms->homenr,cr,top_global);
+            }
+
             wallcycle_stop(wcycle, ewcUPDATE);
+
 
             update_constraints(fplog, step, &dvdl_constr, ir, mdatoms, state,
                                fr->bMolPBC, graph, f,
@@ -1525,24 +1716,102 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
          * non-communication steps, but we need to calculate
          * the kinetic energy one step before communication.
          */
-        {
-            // Organize to do inter-simulation signalling on steps if
-            // and when algorithms require it.
-            bool doInterSimSignal = (!bFirstStep && bDoReplEx) || bUsingEnsembleRestraints;
+         {
 
-            if (bGStat || (!EI_VV(ir->eI) && do_per_step(step+1, nstglobalcomm)) || doInterSimSignal)
+        	 /*IF AFM simulation of FHMD and if not VV, Compute globals HERE*/
+
+        	 //if (fhmd.S_function == AFM)
+        	 if(is_fhmd)
+        	 {
+                if (fhmd.thermostat_function == bin)
+                {
+                    bool doInterSimSignal = (!bFirstStep && bDoReplEx) || bUsingEnsembleRestraints;
+                    if (bGStat || (!EI_VV(ir->eI) && do_per_step(step+1, nstglobalcomm)) || doInterSimSignal)
+                    {
+                        bool                doIntraSimSignal = true;
+                        SimulationSignaller signaller(&signals, cr, doInterSimSignal, doIntraSimSignal);
+
+                        compute_FHMD_globals(fplog, gstat, cr, ir, fr, ekind, state, mdatoms, nrnb, vcm,
+                                        wcycle, enerd, force_vir, shake_vir, total_vir, pres, mu_tot,
+                                        constr, &signaller,
+                                        lastbox,
+                                        &totalNumberOfBondedInteractions, &bSumEkinhOld,
+                                        (bGStat ? CGLO_GSTAT : 0)
+                                        | (!EI_VV(ir->eI) || bRerunMD ? CGLO_ENERGY : 0)
+                                        | (!EI_VV(ir->eI) && bStopCM ? CGLO_STOPCM : 0)
+                                        | (!EI_VV(ir->eI) ? CGLO_TEMPERATURE : 0)
+                                        | (!EI_VV(ir->eI) || bRerunMD ? CGLO_PRESSURE : 0)
+                                        | CGLO_CONSTRAINT
+                                        | (shouldCheckNumberOfBondedInteractions ? CGLO_CHECK_NUMBER_OF_BONDED_INTERACTIONS : 0),
+                                        top_global,
+                                        step,
+                                        &g_fhmd_s,
+                                        &fhmd);
+
+                        checkNumberOfBondedInteractions(fplog, cr, totalNumberOfBondedInteractions,
+                                                    top_global, top, state,
+                                                    &shouldCheckNumberOfBondedInteractions);
+                    }
+                }
+
+                else if(fhmd.thermostat_function == gromacs)
+                {
+                    // Organize to do inter-simulation signalling on steps if
+                    // and when algorithms require it.
+                    bool doInterSimSignal = (!bFirstStep && bDoReplEx) || bUsingEnsembleRestraints;
+                    if (bGStat || (!EI_VV(ir->eI) && do_per_step(step+1, nstglobalcomm)) || doInterSimSignal)
+                    {
+                        // Since we're already communicating at this step, we
+                        // can propagate intra-simulation signals. Note that
+                        // check_nstglobalcomm has the responsibility for
+                        // choosing the value of nstglobalcomm that is one way
+                        // bGStat becomes true, so we can't get into a
+                        // situation where e.g. checkpointing can't be
+                        // signalled.
+                        bool                doIntraSimSignal = true;
+                        SimulationSignaller signaller(&signals, cr, doInterSimSignal, doIntraSimSignal);
+
+                        compute_globals(fplog, gstat, cr, ir, fr, ekind, state, mdatoms, nrnb, vcm,
+                                        wcycle, enerd, force_vir, shake_vir, total_vir, pres, mu_tot,
+                                        constr, &signaller,
+                                        lastbox,
+                                        &totalNumberOfBondedInteractions, &bSumEkinhOld,
+                                        (bGStat ? CGLO_GSTAT : 0)
+                                        | (!EI_VV(ir->eI) || bRerunMD ? CGLO_ENERGY : 0)
+                                        | (!EI_VV(ir->eI) && bStopCM ? CGLO_STOPCM : 0)
+                                        | (!EI_VV(ir->eI) ? CGLO_TEMPERATURE : 0)
+                                        | (!EI_VV(ir->eI) || bRerunMD ? CGLO_PRESSURE : 0)
+                                        | CGLO_CONSTRAINT
+                                        | (shouldCheckNumberOfBondedInteractions ? CGLO_CHECK_NUMBER_OF_BONDED_INTERACTIONS : 0)
+                                        );
+                        checkNumberOfBondedInteractions(fplog, cr, totalNumberOfBondedInteractions,
+                                                        top_global, top, state,
+                                                        &shouldCheckNumberOfBondedInteractions);
+
+                    }
+
+                }
+
+        	}
+            else
             {
-                // Since we're already communicating at this step, we
-                // can propagate intra-simulation signals. Note that
-                // check_nstglobalcomm has the responsibility for
-                // choosing the value of nstglobalcomm that is one way
-                // bGStat becomes true, so we can't get into a
-                // situation where e.g. checkpointing can't be
-                // signalled.
-                bool                doIntraSimSignal = true;
-                SimulationSignaller signaller(&signals, cr, doInterSimSignal, doIntraSimSignal);
+                // Organize to do inter-simulation signalling on steps if
+                // and when algorithms require it.
+                bool doInterSimSignal = (!bFirstStep && bDoReplEx) || bUsingEnsembleRestraints;
 
-                compute_globals(fplog, gstat, cr, ir, fr, ekind, state, mdatoms, nrnb, vcm,
+                if (bGStat || (!EI_VV(ir->eI) && do_per_step(step+1, nstglobalcomm)) || doInterSimSignal)
+                {
+                    // Since we're already communicating at this step, we
+                    // can propagate intra-simulation signals. Note that
+                    // check_nstglobalcomm has the responsibility for
+                    // choosing the value of nstglobalcomm that is one way
+                    // bGStat becomes true, so we can't get into a
+                    // situation where e.g. checkpointing can't be
+                    // signalled.
+                    bool                doIntraSimSignal = true;
+                    SimulationSignaller signaller(&signals, cr, doInterSimSignal, doIntraSimSignal);
+
+                    compute_globals(fplog, gstat, cr, ir, fr, ekind, state, mdatoms, nrnb, vcm,
                                 wcycle, enerd, force_vir, shake_vir, total_vir, pres, mu_tot,
                                 constr, &signaller,
                                 lastbox,
@@ -1555,9 +1824,10 @@ double gmx::do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
                                 | CGLO_CONSTRAINT
                                 | (shouldCheckNumberOfBondedInteractions ? CGLO_CHECK_NUMBER_OF_BONDED_INTERACTIONS : 0)
                                 );
-                checkNumberOfBondedInteractions(fplog, cr, totalNumberOfBondedInteractions,
+                    checkNumberOfBondedInteractions(fplog, cr, totalNumberOfBondedInteractions,
                                                 top_global, top, state,
                                                 &shouldCheckNumberOfBondedInteractions);
+                }
             }
         }
 

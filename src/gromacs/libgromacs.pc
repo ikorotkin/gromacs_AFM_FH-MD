@@ -1,0 +1,11 @@
+libdir=/usr/local/gromacs/lib
+
+Name: libgromacs_mpi
+Description: Gromacs library
+URL: http://www.gromacs.org
+Version: 2016
+Requires:  
+Libs.private: -lpthread -ldl -fopenmp
+Libs: -L${libdir} -lgromacs_mpi  -lm 
+Cflags:  -I/usr/local/gromacs/include -DGMX_DOUBLE=0 -fopenmp -std=c++0x 
+

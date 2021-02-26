@@ -44,6 +44,9 @@
 #include "gromacs/timing/wallcycle.h"
 #include "gromacs/timing/walltime_accounting.h"
 
+/*FHMD include*/
+#include "gromacs/fhmdlib/data_structures.h"
+
 struct gmx_constr;
 struct gmx_localtop_t;
 struct gmx_output_env_t;
@@ -93,6 +96,17 @@ void global_stat(gmx_global_stat_t gs,
                  int *totalNumberOfBondedInteractions,
                  gmx_bool bSumEkinhOld, int flags);
 /* All-reduce energy-like quantities over cr->mpi_comm_mysim */
+
+void global_FHMD_stat(gmx_global_stat_t gs,
+                 t_commrec *cr, gmx_enerdata_t *enerd,
+                 tensor fvir, tensor svir, rvec mu_tot,
+                 t_inputrec *inputrec,
+                 gmx_ekindata_t *ekind,
+                 gmx_constr *constr, t_vcm *vcm,
+                 int nsig, real *sig,
+                 int *totalNumberOfBondedInteractions,
+                 gmx_bool bSumEkinhOld, int flags, gmx_fhmd_global_stat *g_fhmd_s, FHMD *fh);
+/* All-reduce energy-like quantities for AFM over cr->mpi_comm_mysim */
 
 int do_per_step(gmx_int64_t step, gmx_int64_t nstep);
 /* Return TRUE if io should be done */

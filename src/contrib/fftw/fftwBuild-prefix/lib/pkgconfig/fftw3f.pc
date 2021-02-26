@@ -1,0 +1,11 @@
+prefix=/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/fftwBuild-prefix
+exec_prefix=${prefix}
+libdir=/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/fftwBuild-prefix/lib
+includedir=${prefix}/include
+
+Name: FFTW
+Description: fast Fourier transform library
+Version: 3.3.5
+Libs: -L${libdir} -lfftw3f 
+Libs.private: -lm
+Cflags: -I${includedir}

@@ -1,7 +1,7 @@
 %
 % This file is part of the GROMACS molecular simulation package.
 %
-% Copyright (c) 2013,2014,2015,2016,2017, by the GROMACS development team, led by
+% Copyright (c) 2013,2014,2015,2016, by the GROMACS development team, led by
 % Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
 % and including many others, as listed in the AUTHORS file in the
 % top-level source directory and at http://www.gromacs.org.
@@ -2375,12 +2375,12 @@ Then, {\tt mdrun} computes the Hessian.  {\bf Note} that for generating
 the run input file, one should use the minimized conformation from
 the full precision trajectory file, as the structure file is not
 accurate enough.
-{\tt \normindex{gmx nmeig}} does the diagonalization and
+{\tt \normindex{g_nmeig}} does the diagonalization and
 the sorting of the normal modes according to their frequencies.
-Both {\tt mdrun} and {\tt gmx nmeig} should be run in double precision.
-The normal modes can be analyzed with the program {\tt gmx anaeig}.
+Both {\tt mdrun} and {\tt g_nmeig} should be run in double precision.
+The normal modes can be analyzed with the program {\tt g_anaeig}.
 Ensembles of structures at any temperature and for any subset of
-normal modes can be generated with {\tt \normindex{gmx nmens}}.
+normal modes can be generated with {\tt \normindex{g_nmens}}.
 An overview of normal-mode analysis and the related principal component
 analysis (see \secref{covanal}) can be found in~\cite{Hayward95b}.
 % } % Brace matches ifthenelse test for gmxlite
@@ -2525,7 +2525,7 @@ by an appropriate numerical integration procedure.
 
 {\gromacs} now also supports the use of Bennett's Acceptance Ratio~\cite{Bennett1976}
 for calculating values of $\Delta$G for transformations from state A to state B using
-the program {\tt \normindex{gmx bar}}. The same data can also be used to calculate free
+the program {\tt \normindex{g_bar}}. The same data can also be used to calculate free
 energies using MBAR~\cite{Shirts2008}, though the analysis currently requires external tools from
 the external {\tt pymbar} package, at https://SimTK.org/home/pymbar.
 
@@ -2666,8 +2666,8 @@ of a region of phase space \cite{Lange2006a}.
 
 The procedure for essential dynamics sampling or flooding is as follows.
 First, the eigenvectors and eigenvalues need to be determined
-using covariance analysis ({\tt gmx covar})
-or normal-mode analysis ({\tt gmx nmeig}).
+using covariance analysis ({\tt g_covar})
+or normal-mode analysis ({\tt g_nmeig}).
 Then, this information is fed into {\tt make_edi},
 which has many options for selecting vectors and setting parameters,
 see {\tt gmx make_edi -h}.
@@ -2777,13 +2777,12 @@ should be calculated on which rank.
 When different ranks have a different computational load
 (load imbalance), all ranks will have to wait for the one
 that takes the most time. One would like to avoid such a situation.
-Load imbalance can occur due to four reasons:
+Load imbalance can occur due to three reasons:
 \begin{itemize}
 \item inhomogeneous particle distribution
 \item inhomogeneous interaction cost distribution (charged/uncharged,
   water/non-water due to {\gromacs} water innerloops)
 \item statistical fluctuation (only with small particle numbers)
-\item differences in communication time, due to network topology and/or other jobs on the machine interfering with our communication
 \end{itemize}
 So we need a dynamic load balancing algorithm
 where the volume of each domain decomposition cell
@@ -2807,7 +2806,7 @@ of a distance between following, staggered boundaries of cells.
 
 By default, {\tt mdrun} automatically turns on the dynamic load
 balancing during a simulation when the total performance loss
-due to the force calculation imbalance is 2\% or more.
+due to the force calculation imbalance is 5\% or more.
 {\bf Note} that the reported force load imbalance numbers might be higher,
 since the force calculation is only part of work that needs to be done
 during an integration step.
@@ -2824,36 +2823,6 @@ to change their volume by about a factor of 0.5, which should allow
 for compensation of a load imbalance of 100\%.
 The minimum allowed scaling can be changed with the {\tt -dds}
 option of {\tt mdrun}.
-
-The load imbalance is measured by timing a single region of the MD step
-on each MPI rank. This region can not include MPI communication, as
-timing of MPI calls does not allow separating wait due to imbalance
-from actual communication.
-The domain volumes are then scaled, with under-relaxation, inversely
-proportional with the measured time. This procedure will decrease the
-load imbalance when the change in load in the measured region correlates
-with the change in domain volume and the load outside
-the measured region does not depend strongly on the domain volume.
-In CPU-only simulations, the load is measured between the coordinate
-and the force communication. In hybrid CPU-GPU simulations we overlap
-communication on the CPU with calculation on the GPU. Therefore we
-measure from the last communication before the force calculation to
-when the CPU or GPU is finished, whichever is last.
-When not using PME ranks, we subtract the time in PME from the CPU time,
-as this includes MPI calls and the PME load is independent of domain size.
-This generally works well, unless the non-bonded load is low and there is
-imbalance in the bonded interactions. Then two issues can arise.
-Dynamic load balancing can increase the imbalance in update and constraints
-and with PME the coordinate and force redistribution time can go up
-significantly. Although dynamic load balancing
-can significantly improve performance in cases where there is imbalance in
-the bonded interactions on the CPU, there are many situations in which
-some domains continue decreasing in size and the load imbalance increases
-and/or PME coordinate and force redistribution cost increases significantly.
-As of version 2016.1, {\tt mdrun} disables the dynamic load balancing when
-measurement indicates that it deteriorates performance. This means that in most
-cases the user will get good performance with the default, automated
-dynamic load balancing setting.
 
 \subsection{Constraints in parallel\index{constraints}}
 \label{subsec:plincs}

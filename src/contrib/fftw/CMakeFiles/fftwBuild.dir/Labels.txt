@@ -1,0 +1,14 @@
+# Target labels
+ fftwBuild
+# Source files and their labels
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/CMakeFiles/fftwBuild
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/CMakeFiles/fftwBuild.rule
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/CMakeFiles/fftwBuild-complete.rule
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/fftwBuild-prefix/src/fftwBuild-stamp/fftwBuild-install.rule
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/fftwBuild-prefix/src/fftwBuild-stamp/fftwBuild-mkdir.rule
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/fftwBuild-prefix/src/fftwBuild-stamp/fftwBuild-download.rule
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/fftwBuild-prefix/src/fftwBuild-stamp/fftwBuild-update.rule
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/fftwBuild-prefix/src/fftwBuild-stamp/fftwBuild-patch.rule
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/fftwBuild-prefix/src/fftwBuild-stamp/fftwBuild-configure.rule
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/fftwBuild-prefix/src/fftwBuild-stamp/fftwBuild-build.rule
+/home/fanli/workspace/gromacs_fh_debug/src/contrib/fftw/fftwBuild-prefix/src/fftwBuild-stamp/fftwBuild-pre-download.rule

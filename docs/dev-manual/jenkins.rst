@@ -71,18 +71,9 @@ configuration should be more static.
 clang static analysis
 ^^^^^^^^^^^^^^^^^^^^^
 
-The file :file:`admin/builds/clang-analyzer.py` specifies the exact build
-sequence and the CMake cache variables used for clang static analysis.  This
-file also specifies the clang version used for the analysis, as well as the C++
-compiler used (``clang-static-analyzer-<version>``).
-
-To run the analysis outside Jenkins, you should run both ``cmake`` and ``make``
-under ``scan-build`` command using the same CMake cache variables as in the
-build script. When you do the initial CMake configuration with ``scan-build``,
-it sets the C++ compiler to the analyzer. Note that using ``scan-build`` like
-this will also analyze C code, but Jenkins ignores C code for analysis. This
-can result in extra warnings, which can be suppressed by manually setting
-CMAKE_C_COMPILER to a value other than Clang static analyzer.
+The exact build sequence and the CMake configuration used is in
+:file:`admin/builds/clang-analysis.py`.  This file also specifies the clang
+version used for the analysis.
 
 cppcheck
 ^^^^^^^^
@@ -122,8 +113,7 @@ On-demand builds
 ----------------
 
 These builds can be triggered on request for certain changes in Gerrit, or
-manually from Jenkins.  See :ref:`releng-triggering-builds` for details on
-how to trigger these.
+manually from Jenkins.
 
 Coverage
 ^^^^^^^^
@@ -161,9 +151,3 @@ The exact build sequence is desribed in :ref:`releng-workflow-release`.
 The build uses the source tarball build as a subbuild, and parts of the build
 are executed using :file:`admin/builds/gromacs.py` and
 :file:`admin/builds/documentation.py`.
-
-:file:`admin/builds/get-version-info.py` is used for getting the version
-information from the source tree as part of this workflow.
-
-:file:`admin/builds/update-regtest-hash.py` has logic to update the
-regressiontests tarball MD5 sum for the released tarball automatically.
