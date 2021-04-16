@@ -18,6 +18,18 @@ source /usr/local/gromacs/bin/GMXRC
 
 See [INSTALL](https://github.com/ikorotkin/gromacs_AFM_FH-MD/blob/main/INSTALL) file for more details.
 
+## Running a simulation
+
+An example of the configuration files is located in [FHMD_AFM_small_data](https://github.com/ikorotkin/gromacs_AFM_FH-MD/tree/main/FHMD_AFM_small_data) directory. It contains Gromacs standard configuration files with the initial topology of the system, force field, initial coordinates of all atoms, gromacs options, and the FH-MD coupling parameter file `coupling.prm`.
+
+To start the simulation, in the directory with the configuration files (including `coupling.prm`), execute
+
+```bash
+gmx mdrun -ntomp 1
+```
+
+Option `-ntomp 1` means that MD-FH coupling currently does not support OpenMP (shared memory) parallelism. But MPI and Gromacs tMPI parallelisation is supported and will be activated by default.
+
 ## Licensing
 
 -   GROMACS is open source software distributed under the GNU Lesser General Public License (LGPL) Version 2.1 or (at your option) any later version. GROMACS includes optional code covered by several different licences. See [COPYING](https://github.com/ikorotkin/gromacs_AFM_FH-MD/blob/main/COPYING) file for details.

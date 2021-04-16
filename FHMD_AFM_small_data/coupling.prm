@@ -1,0 +1,53 @@
+; Hybrid Molecular Dynamics - 2-Way Coupling Parallel VERSION 1.00
+
+scheme = 1              ; 0 - Pure MD, 1 - One-way coupling, 2 - Two-way coupling
+
+S = -3                  ; Parameter S (-1 - fixed sphere, -2 - moving sphere, -3 - AFM)
+
+R1   = 0.5              ; MD sphere radius for variable S, [0..1]
+R2   = 0.6              ; FH sphere radius for variable S, [0..1]
+z1   = 0.3              ; upper limit of coordinate of upper MD zone in z direction  for variable S
+z2   = 0.95             ; upper limit of coordinate of upper buffer zone in z direction for variable S
+z_c_ball = 0.35
+
+nzbin   = 21            ; number of the bins used to thermostat the temperature
+
+Smin = 0.0              ; Minimum S for variable S
+Smax = 0.9              ; Maximum S for variable S
+
+gamma = -0.54795        ; the factor to adjust the alpha and beta
+
+
+thermostat = 0          ; 0 - original gromacs thermostat, 1 - thermostat according to the bin  
+
+eta   = 1               ; the factor to adjust thermostat
+
+alpha   = 1             ; Alpha parameter for dx/dt and du/dt equations, nm^2/ps
+beta    = 1             ; Beta parameter for du/dt equation, ps^-1
+
+S_berendsen = 1         ; If S_berendsen >= 0, Berendsen thermostat will work for S <= S_berendsen,
+                        ; otherwise factor (1-S^(-S_berendsen)) will be applied (local thermostat)
+
+Nx = 3                  ; Number of FH cells along X axis
+Ny = 3                  ; Number of FH cells along Y axis
+Nz = 6                  ; Number of FH cells along Z axis
+
+NxMD = 5                ; Number of small-scale MD-FH cells along X axis
+NyMD = 5                ; Number of small-scale MD-FH cells along Y axis
+NzMD = 5                ; Number of small-scale MD-FH cells along Z axis
+
+FH_EOS   = 1            ; EOS: 0 - Liquid Argon, 1 - SPC/E water
+FH_step  = 10           ; FH time step dt_FH = FH_step * dt_MD
+FH_equil = 10000        ; Number of time steps for the FH model equilibration (for 1-way coupling)
+FH_dens  = 602.181      ; FH mean density
+FH_temp  = 298.15       ; FH mean temperature
+FH_blend = 0.005        ; FH Blending: -1 - dynamic, or define static blending parameter (0..1)
+
+Noutput  = 1            ; Write arrays to files every Noutput MD time steps (0 - do not write)
+
+; You may consider to use FH_dens = 602.181 since this is the total MD density of the box.
+; NB: Please use spaces before and after '=' in this file, e.g. 'S = 0' (not 'S=0').
+; NB: for scheme = 0 only the original thermostat of gromacs is used regardless of whatever thermostat is
+; NB: two-way is not fully developed, please always use scheme = 1 or scheme = 0
+; NB: if there are freezed groups in mdp file, the thermostat must set to 0, i.e. original gromacs thermostat
+; NB: if the thermostat must set to 1 i.e. bin thermostat, only AFM option can be used.
